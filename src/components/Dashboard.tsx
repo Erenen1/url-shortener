@@ -29,8 +29,7 @@ import {
 
 // Analitik bileşenlerini import et
 import { 
-  DeviceBreakdownChart, 
-  GeoDistributionChart 
+  DeviceBreakdownChart
 } from '../features/analytics/components/Charts';
 
 // Mock veriler
@@ -589,9 +588,8 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Alt Bölüm: Dağılım ve Harita */}
-      <div className="grid grid-cols-2 gap-sm">
-        {/* Sol Bölüm: Cihaz Dağılımı */}
+      {/* Alt Bölüm: Cihaz Dağılımı - Tam Genişlik */}
+      <div className="w-full">
         <div className="bg-surface border border-divider rounded-card p-xs">
           <h3 className="text-h2 text-text-secondary mb-2xs flex items-center">
             <DeviceTabletIcon className="w-5 h-5 mr-2xs text-primary-accent" />
@@ -613,34 +611,6 @@ const Dashboard: React.FC = () => {
                 'Mozilla/5.0 (Linux; Android 10; SM-G970F)': 200
               },
               geoDistribution: {}
-            }} 
-          />
-        </div>
-
-        {/* Sağ Bölüm: Coğrafi Dağılım */}
-        <div className="bg-surface border border-divider rounded-card p-xs">
-          <h3 className="text-h2 text-text-secondary mb-2xs flex items-center">
-            <CountryIcon className="w-5 h-5 mr-2xs text-success" />
-            Ülke Bazlı Trafik
-          </h3>
-          <GeoDistributionChart 
-            metrics={{
-              totalClicks: 1000,
-              uniqueVisitors: 750,
-              avgClicksPerUrl: 5.5,
-              p95Latency: 95,
-              errorRate: 0.5,
-              activeUrls: 50,
-              topUrls: [],
-              referrerSources: [],
-              deviceBreakdown: {},
-              geoDistribution: {
-                'TR': 500,
-                'US': 300,
-                'DE': 200,
-                'FR': 150,
-                'JP': 100
-              }
             }} 
           />
         </div>

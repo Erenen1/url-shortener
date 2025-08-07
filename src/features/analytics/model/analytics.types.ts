@@ -1,22 +1,20 @@
-import * as z from 'zod';
-
 // Kanal enum'ı
-export const ChannelEnum = z.enum(['qr', 'link']);
-
-// Analitik olay şeması
-export const AnalyticsEventSchema = z.object({
-  shortUrl: z.string(),
-  timestamp: z.string().transform(val => new Date(val)),
-  ipHash: z.string(),
-  userAgent: z.string(),
-  referrer: z.string().optional(),
-  utmCampaign: z.string().optional(),
-  country: z.string().optional(),
-  channel: ChannelEnum.optional()
-});
+export type Channel = 'qr' | 'link';
 
 // Analitik olay tipi
-export type AnalyticsEvent = z.ZodType.infer<typeof AnalyticsEventSchema>;
+export interface AnalyticsEvent {
+  shortUrl: string;
+  timestamp: Date;
+  ipHash: string;
+  userAgent: string;
+  referrer?: string;
+  utmCampaign?: string;
+  country?: string;
+  channel?: Channel;
+  statusCode?: number;
+  latencyMs?: number;
+  uniqueVisitorKey?: string;
+}
 
 // Analitik metrikler tipi
 export interface AnalyticsMetrics {
@@ -45,7 +43,7 @@ export interface AnalyticsFilterOptions {
   };
   userId?: string;
   tag?: string;
-  channel?: 'qr' | 'link';
+  channel?: Channel;
   country?: string;
   campaign?: string;
 } 

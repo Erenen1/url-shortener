@@ -140,9 +140,9 @@ export class AnalyticsService {
   // Hata oranını hesapla
   private calculateErrorRate(events: AnalyticsEvent[]): number {
     const errorEvents = events.filter(event => 
-      event.statusCode >= 400 && event.statusCode < 600
+      event.statusCode !== undefined && event.statusCode >= 400 && event.statusCode < 600
     );
-    return (errorEvents.length / events.length) * 100;
+    return events.length > 0 ? (errorEvents.length / events.length) * 100 : 0;
   }
 
   // Aktif URL sayısını hesapla
@@ -229,7 +229,8 @@ export class AnalyticsService {
   // Coğrafi dağılımı getir
   private getGeoDistribution(events: AnalyticsEvent[]): Record<string, number> {
     return events.reduce((acc, event) => {
-      acc[event.country] = (acc[event.country] || 0) + 1;
+      const country = event.country || 'Unknown';
+      acc[country] = (acc[country] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
   }

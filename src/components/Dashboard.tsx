@@ -11,9 +11,7 @@ import {
   ChartBarSquareIcon,
   DeviceTabletIcon,
   GlobeAltIcon as CountryIcon,
-  TagIcon,
   FireIcon,
-  InformationCircleIcon,
   AdjustmentsHorizontalIcon
 } from '@heroicons/react/24/outline';
 import { 
@@ -29,8 +27,12 @@ import {
 
 // Analitik bileşenlerini import et
 import { 
-  DeviceBreakdownChart
+  DeviceBreakdownChart,
+  TopUrlsChart,
+  ReferrerSourcesChart,
+  TrafficHeatmap
 } from '../features/analytics/components/Charts';
+import { AnalyticsService } from '../features/analytics/services/analytics.service';
 
 // Mock veriler
 const mockKPIData = {
@@ -40,6 +42,21 @@ const mockKPIData = {
   p95Latency: { value: 85, change: -2.3 },
   errorRate: { value: 0.5, change: 1.2 },
   activeUrls: { value: 1_234, change: 8.7 }
+};
+
+// Yardımcı: Tarih aralığını gün sayısına çevir
+const getDaysForRange = (range: 'Tüm Zamanlar' | '7 gün' | '30 gün' | '90 gün'): number => {
+  switch (range) {
+    case '7 gün':
+      return 7;
+    case '30 gün':
+      return 30;
+    case '90 gün':
+      return 90;
+    case 'Tüm Zamanlar':
+    default:
+      return 90; // Veri sınırlı olduğundan varsayılan 90 gün
+  }
 };
 
 // Trend verisi için dinamik üretim fonksiyonu
@@ -57,8 +74,9 @@ const generateTrendData = (days: number) => {
     const dayOfWeek = currentDate.getDay();
     const weekendMultiplier = dayOfWeek === 0 || dayOfWeek === 6 ? 1.3 : 1;
     
+    const dateLabel = currentDate.toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit' });
     return {
-      name: currentDate.toLocaleDateString('tr-TR', { weekday: 'short' }),
+      dateLabel,
       totalClicks: Math.floor(baseClicks * weekendMultiplier),
       uniqueVisitors: Math.floor(baseVisitors * weekendMultiplier)
     };
@@ -73,9 +91,6 @@ const filterOptions = {
     { value: 'qr', label: 'QR Kod', icon: <DeviceTabletIcon className="w-4 h-4" /> },
     { value: 'link', label: 'Link', icon: <LinkIcon className="w-4 h-4" /> }
   ],
-  campaigns: [
-    { value: 'utm_source', label: 'UTM Kaynak', icon: <TagIcon className="w-4 h-4" /> }
-  ],
   countries: [
     { value: 'tr', label: 'Türkiye', icon: <CountryIcon className="w-4 h-4" /> },
     { value: 'us', label: 'Amerika', icon: <CountryIcon className="w-4 h-4" /> }
@@ -86,35 +101,7 @@ const filterOptions = {
   ]
 };
 
-// Mock veriler
-const mockTopUrlsData = [
-  { url: 'short.url/abc123', title: 'Marketing Campaign', clicks: 5678, percentage: 24.5 },
-  { url: 'short.url/def456', title: 'Product Launch', clicks: 4321, percentage: 18.7 },
-  { url: 'short.url/ghi789', title: 'Blog Post', clicks: 3210, percentage: 13.9 },
-  { url: 'short.url/jkl012', title: 'Social Media', clicks: 2345, percentage: 10.2 },
-  { url: 'short.url/mno345', title: 'Email Newsletter', clicks: 1876, percentage: 8.1 }
-];
-
-const mockReferrerData = [
-  { 
-    domain: 'google.com', 
-    clicks: 12345, 
-    percentage: 35.6,
-    utmCampaigns: [
-      { name: 'Summer Sale', clicks: 5678 },
-      { name: 'New Product', clicks: 3456 }
-    ]
-  },
-  { 
-    domain: 'facebook.com', 
-    clicks: 8765, 
-    percentage: 25.3,
-    utmCampaigns: [
-      { name: 'Brand Awareness', clicks: 4321 },
-      { name: 'Retargeting', clicks: 2345 }
-    ]
-  }
-];
+ 
 
 // KPI Kartı bileşeni
 const KPICard: React.FC<{
@@ -142,29 +129,8 @@ const KPICard: React.FC<{
   </div>
 );
 
-// Heatmap için veri üretimi
-const generateHeatmapData = () => {
-  const days = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
-  const hours = Array.from({length: 24}, (_, i) => `${i.toString().padStart(2, '0')}:00`);
-
-  const heatmapData = days.map((day, dayIndex) => ({
-    day,
-    data: hours.map((hour, hourIndex) => ({
-      hour,
-      value: Math.floor(
-        // Gerçekçi trafik desenleri
-        Math.sin(dayIndex * 0.5 + hourIndex * 0.2) * 50 + 
-        Math.random() * 30 + 
-        (hourIndex >= 9 && hourIndex <= 17 ? 20 : 5)
-      )
-    }))
-  }));
-
-  return heatmapData;
-};
-
 const Dashboard: React.FC = () => {
-  const [dateRange, setDateRange] = useState<'7 gün' | '30 gün' | '90 gün'>('7 gün');
+  const [dateRange, setDateRange] = useState<'Tüm Zamanlar' | '7 gün' | '30 gün' | '90 gün'>('7 gün');
   const [lastSync, setLastSync] = useState(new Date());
   const [activeFilters, setActiveFilters] = useState<{
     [key: string]: string[]
@@ -172,15 +138,10 @@ const Dashboard: React.FC = () => {
 
   // Trend verisi için dinamik hesaplama
   const trendData = useMemo(() => {
-    const daysMap: { [key in '7 gün' | '30 gün' | '90 gün']: number } = {
-      '7 gün': 7,
-      '30 gün': 30,
-      '90 gün': 90
-    };
-    return generateTrendData(daysMap[dateRange]);
+    return generateTrendData(getDaysForRange(dateRange));
   }, [dateRange]);
 
-  const dateRangeOptions: Array<'7 gün' | '30 gün' | '90 gün'> = ['7 gün', '30 gün', '90 gün'];
+  const dateRangeOptions: Array<'Tüm Zamanlar' | '7 gün' | '30 gün' | '90 gün'> = ['Tüm Zamanlar', '7 gün', '30 gün', '90 gün'];
 
   const handleRefresh = () => {
     // Burada gerçek veri yenileme işlemi yapılacak
@@ -221,9 +182,7 @@ const Dashboard: React.FC = () => {
         >
           <AdjustmentsHorizontalIcon className="w-4 h-4" />
           <span className="text-meta">
-            {category === 'channels' ? 'Kanal' : 
-             category === 'campaigns' ? 'Kampanya' : 
-             category === 'countries' ? 'Ülke' : 'Cihaz'}
+            {category === 'channels' ? 'Kanal' : category === 'countries' ? 'Ülke' : 'Cihaz'}
           </span>
           {activeValues.length > 0 && (
             <span className="bg-primary-accent text-white text-[10px] px-2xs rounded-full ml-2xs">
@@ -257,14 +216,26 @@ const Dashboard: React.FC = () => {
     );
   };
 
-  // Heatmap verisi
-  const heatmapData = useMemo(generateHeatmapData, []);
+  // AnalyticsService ile metrik üret (mock)
+  const analyticsService = useMemo(() => new AnalyticsService(), []);
+  const analyticsMetrics = useMemo(() => {
+    const start = new Date();
+    start.setDate(start.getDate() - getDaysForRange(dateRange));
+    return analyticsService.calculateMetrics(start, new Date());
+  }, [analyticsService, dateRange]);
 
-  // Heatmap için renk hesaplama
-  const getHeatmapColor = (value: number) => {
-    const intensity = Math.min(value / 100, 1);
-    return `rgba(16, 185, 129, ${intensity * 0.8})`;
-  };
+  // Ek metrikler: Boş referer oranı ve bilinmeyen ülke oranı
+  const missingReferrerPercentage = useMemo(() => {
+    const ref = analyticsMetrics.referrerSources.find(s => s.domain === 'default.com');
+    return ref ? ref.percentage : 0;
+  }, [analyticsMetrics]);
+
+  const unknownCountryPercentage = useMemo(() => {
+    const dist = analyticsMetrics.geoDistribution || {};
+    const total = Object.values(dist).reduce((a, b) => a + b, 0);
+    const unknown = dist['Unknown'] || 0;
+    return total > 0 ? (unknown / total) * 100 : 0;
+  }, [analyticsMetrics]);
 
   return (
     <div className="space-y-sm">
@@ -274,7 +245,7 @@ const Dashboard: React.FC = () => {
           <span className="text-text-secondary text-meta mr-2xs">Tarih Aralığı:</span>
           <select 
             value={dateRange} 
-            onChange={(e) => setDateRange(e.target.value as '7 gün' | '30 gün' | '90 gün')}
+            onChange={(e) => setDateRange(e.target.value as 'Tüm Zamanlar' | '7 gün' | '30 gün' | '90 gün')}
             className="bg-surface border border-divider rounded-md px-2xs py-4xs text-body"
           >
             {dateRangeOptions.map(option => (
@@ -423,10 +394,27 @@ const Dashboard: React.FC = () => {
               stroke="#E2E8F0" 
             />
             <XAxis 
-              dataKey="name" 
+              dataKey="dateLabel" 
               axisLine={false} 
               tickLine={false} 
-              className="text-text-muted"
+              height={60}
+              tick={(props: any) => {
+                const { x, y, payload } = props;
+                return (
+                  <g transform={`translate(${x},${y})`}>
+                    <text
+                      x={0}
+                      y={0}
+                      dy={16}
+                      textAnchor="end"
+                      fill="#6b7280"
+                      transform="rotate(-45)"
+                    >
+                      {payload.value}
+                    </text>
+                  </g>
+                );
+              }}
             />
             <YAxis 
               axisLine={false} 
@@ -488,131 +476,72 @@ const Dashboard: React.FC = () => {
 
       {/* Alt Bölüm */}
       <div className="grid grid-cols-3 gap-sm">
-        {/* Sol Bölüm: Saat ve Gün Bazlı Trafik */}
-        <div className="bg-surface border border-divider rounded-card p-xs relative">
-          <div className="flex justify-between items-center mb-2xs">
-            <h3 className="text-h2 text-text-secondary flex items-center">
-              <ClockIcon className="w-5 h-5 mr-2xs text-warning" />
-              Saat ve Gün Bazlı Trafik
-            </h3>
-            <button 
-              className="text-text-muted hover:text-text-primary"
-              title="Trafik desenlerini açıklama"
-            >
-              <InformationCircleIcon className="w-5 h-5" />
-            </button>
-          </div>
-          
-          {/* Boş heatmap alanı */}
-          <div className="h-64 flex items-center justify-center text-text-muted">
-            Trafik Isı Haritası (Geliştirilecek)
-          </div>
+        {/* Isı Haritası - Tam Genişlik */}
+        <div className="col-span-3">
+          <TrafficHeatmap />
         </div>
 
-        {/* Orta Bölüm: Üst Kaynaklar ve Kampanyalar */}
-        <div className="bg-surface border border-divider rounded-card p-xs">
-          <div className="flex justify-between items-center mb-2xs">
-            <h3 className="text-h2 text-text-secondary flex items-center">
-              <LinkIcon className="w-5 h-5 mr-2xs text-success" />
-              Üst Kaynaklar ve Kampanyalar
-            </h3>
+        {/* Üçlü Grid: Referans, Top URL'ler, Anomaliler */}
+        <div className="col-span-3 grid grid-cols-3 gap-sm">
+          <div>
+            <ReferrerSourcesChart metrics={analyticsMetrics} />
           </div>
-          
-          <div className="space-y-2xs">
-            {mockReferrerData.map((referrer, index) => (
-              <div 
-                key={referrer.domain} 
-                className="border-b border-divider pb-2xs last:border-b-0"
-              >
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center">
-                    <span className="text-body text-text-secondary mr-2xs">
-                      {referrer.domain}
-                    </span>
-                    <span className="text-meta text-text-muted">
-                      ({referrer.percentage}%)
-                    </span>
-                  </div>
-                  <span className="text-meta text-text-secondary font-semibold">
-                    {referrer.clicks.toLocaleString()}
-                  </span>
+          <div>
+            <TopUrlsChart metrics={analyticsMetrics} />
+          </div>
+          {/* Sağ: Anomaliler ve Veri Kalitesi */}
+          <div className="bg-gradient-to-br from-white to-surface border border-divider rounded-card p-xs shadow-sm">
+            <div className="flex justify-between items-center mb-2xs">
+              <h3 className="text-h2 text-text-secondary flex items-center">
+                <FireIcon className="w-5 h-5 mr-2xs text-danger" />
+                Anomaliler ve Veri Kalitesi
+              </h3>
+            </div>
+            
+            <div className="grid grid-cols-3 md:grid-cols-5 gap-2xs">
+              <div className="text-center p-3 bg-red-50 border border-red-100 rounded-md">
+                <div className="text-lg font-bold text-red-600">
+                  {analyticsMetrics.errorRate.toFixed(2)}%
                 </div>
-                
-                {/* UTM Kampanyaları */}
-                <div className="mt-2xs space-y-1">
-                  {referrer.utmCampaigns.map(campaign => (
-                    <div 
-                      key={campaign.name} 
-                      className="flex justify-between items-center"
-                    >
-                      <div className="flex items-center">
-                        <TagIcon className="w-4 h-4 text-primary-accent mr-2xs" />
-                        <span className="text-meta text-text-muted">
-                          {campaign.name}
-                        </span>
-                      </div>
-                      <span className="text-meta text-text-secondary">
-                        {campaign.clicks.toLocaleString()}
-                      </span>
-                    </div>
-                  ))}
-                </div>
+                <div className="text-2xs text-red-700">Hata Oranı</div>
               </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Sağ Bölüm: Anomaliler ve Veri Kalitesi */}
-        <div className="bg-surface border border-divider rounded-card p-xs">
-          <div className="flex justify-between items-center mb-2xs">
-            <h3 className="text-h2 text-text-secondary flex items-center">
-              <FireIcon className="w-5 h-5 mr-2xs text-danger" />
-              Anomaliler ve Veri Kalitesi
-            </h3>
-          </div>
-          
-          <div className="space-y-2xs">
-            <div className="flex justify-between items-center">
-              <span className="text-meta text-text-secondary">Eksik Referans %</span>
-              <span className="text-meta text-danger font-semibold">3.2%</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-meta text-text-secondary">Bot Tahmini %</span>
-              <span className="text-meta text-warning font-semibold">7.5%</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-meta text-text-secondary">Geç Gelen Olaylar %</span>
-              <span className="text-meta text-text-muted font-semibold">1.8%</span>
+              <div className="text-center p-3 bg-yellow-50 border border-yellow-100 rounded-md">
+                <div className="text-lg font-bold text-yellow-600">
+                  {Math.round(analyticsMetrics.p95Latency)} ms
+                </div>
+                <div className="text-2xs text-yellow-700">p95 Gecikme</div>
+              </div>
+              <div className="text-center p-3 bg-blue-50 border border-blue-100 rounded-md">
+                <div className="text-lg font-bold text-blue-600">
+                  {analyticsMetrics.activeUrls}
+                </div>
+                <div className="text-2xs text-blue-700">Aktif URL</div>
+              </div>
+              <div className="text-center p-3 bg-purple-50 border border-purple-100 rounded-md">
+                <div className="text-lg font-bold text-purple-700">
+                  {missingReferrerPercentage.toFixed(1)}%
+                </div>
+                <div className="text-2xs text-purple-700">Boş Referer</div>
+              </div>
+              <div className="text-center p-3 bg-slate-100 border border-slate-200 rounded-md">
+                <div className="text-lg font-bold text-slate-700">
+                  {unknownCountryPercentage.toFixed(1)}%
+                </div>
+                <div className="text-2xs text-slate-700">Bilinmeyen Ülke</div>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Alt Bölüm: Cihaz Dağılımı - Tam Genişlik */}
-      <div className="w-full">
-        <div className="bg-surface border border-divider rounded-card p-xs">
+      {/* Alt Bölüm: Cihaz Dağılımı */}
+      <div className="mt-sm">
+        <div className="bg-gradient-to-br from-white to-surface border border-divider rounded-card p-xs shadow-sm">
           <h3 className="text-h2 text-text-secondary mb-2xs flex items-center">
             <DeviceTabletIcon className="w-5 h-5 mr-2xs text-primary-accent" />
             Cihaz ve İşletim Sistemi
           </h3>
-          <DeviceBreakdownChart 
-            metrics={{
-              totalClicks: 1000,
-              uniqueVisitors: 750,
-              avgClicksPerUrl: 5.5,
-              p95Latency: 95,
-              errorRate: 0.5,
-              activeUrls: 50,
-              topUrls: [],
-              referrerSources: [],
-              deviceBreakdown: {
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64)': 500,
-                'Mozilla/5.0 (iPhone; CPU iPhone OS 14_6 like Mac OS X)': 300,
-                'Mozilla/5.0 (Linux; Android 10; SM-G970F)': 200
-              },
-              geoDistribution: {}
-            }} 
-          />
+          <DeviceBreakdownChart metrics={analyticsMetrics} />
         </div>
       </div>
     </div>

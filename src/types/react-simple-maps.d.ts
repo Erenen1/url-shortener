@@ -36,6 +36,9 @@ declare module 'react-simple-maps' {
       pressed?: React.CSSProperties;
     };
     className?: string;
+    onMouseEnter?: (event?: React.MouseEvent) => void;
+    onMouseMove?: (event?: React.MouseEvent) => void;
+    onMouseLeave?: (event?: React.MouseEvent) => void;
   }
 
   export interface MarkerProps {

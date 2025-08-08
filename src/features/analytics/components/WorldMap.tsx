@@ -45,10 +45,6 @@ const COUNTRY_COORDS: Record<string, {
 };
 
 const WorldMap: React.FC = () => {
-  const [hoveredCountry, setHoveredCountry] = useState<string | null>(null);
-  const [hoveredGeo, setHoveredGeo] = useState<GeographyType | null>(null);
-  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
-
   // Analytics service'ten veri al
   const analyticsService = useMemo(() => new AnalyticsService(), []);
   const metrics = useMemo(() => {
@@ -81,15 +77,18 @@ const WorldMap: React.FC = () => {
     return processedData;
   }, [metrics.geoDistribution]);
 
-  // Renk skalası - Fotoğraftaki gibi mavi tonları
+  // Renk skalası - güvenli varsayılanla
   const colorScale = useMemo(() => {
+    if (geoData.length === 0) {
+      return (_n: number) => '#F0F8FF';
+    }
     const clicks = geoData.map(country => Number(country.clicks));
     const maxClicks = Math.max(...clicks);
     const minClicks = Math.min(...clicks);
     
     return scaleLinear<string>()
       .domain([0, minClicks, maxClicks])
-      .range(['#F0F8FF', '#87CEEB', '#4682B4']); // Açık mavi → Orta mavi → Koyu mavi
+      .range(['#F0F8FF', '#87CEEB', '#4682B4']);
   }, [geoData]);
 
   // Ülke kodlarını map'e çevir
@@ -138,57 +137,21 @@ const WorldMap: React.FC = () => {
     return colorScale(clicks);
   };
 
-  // Ülke bilgisini al
-  const getCountryInfo = (geo: GeographyType) => {
-    const iso2 = geo.properties.ISO_A2;
-    const iso3 = geo.properties.ISO_A3;
-    const countryName = geo.properties.name;
-    
-    let clicks = 0;
-    let countryDisplayName = countryName;
-    
-    if (iso2 && countryDataMap.has(iso2)) {
-      clicks = countryDataMap.get(iso2) || 0;
-      const countryInfo = geoData.find(c => c.code === iso2);
-      if (countryInfo) countryDisplayName = countryInfo.name;
-    } else if (iso3 && countryDataMap.has(iso3)) {
-      clicks = countryDataMap.get(iso3) || 0;
-      const countryInfo = geoData.find(c => c.iso3 === iso3);
-      if (countryInfo) countryDisplayName = countryInfo.name;
-    } else {
-      const manualMappings: Record<string, string> = {
-        'Turkey': 'TR',
-        'United States of America': 'US',
-        'Germany': 'DE',
-        'France': 'FR',
-        'Japan': 'JP',
-        'China': 'CN',
-        'India': 'IN',
-        'Brazil': 'BR',
-        'Russia': 'RU',
-        'Australia': 'AU'
-      };
-      
-      const mappedCode = manualMappings[countryName];
-      if (mappedCode && countryDataMap.has(mappedCode)) {
-        clicks = countryDataMap.get(mappedCode) || 0;
-        const countryInfo = geoData.find(c => c.code === mappedCode);
-        if (countryInfo) countryDisplayName = countryInfo.name;
-      }
-    }
-
-    return { clicks, name: countryDisplayName };
-  };
-
   const totalVisits = geoData.reduce((sum, country) => sum + Number(country.clicks), 0);
 
-  // Mouse pozisyonunu takip et
-  const handleMouseMove = (event: React.MouseEvent) => {
-    setMousePosition({ x: event.clientX, y: event.clientY });
+  // Hover tooltip durumu
+  const [tooltip, setTooltip] = useState<{ x: number; y: number; name: string; clicks: number } | null>(null);
+  const handleMove = (e: React.MouseEvent, geo: GeographyType) => {
+    const iso2 = geo.properties.ISO_A2;
+    const iso3 = geo.properties.ISO_A3;
+    const countryName = COUNTRY_COORDS[iso2 || '']?.name || geo.properties.name;
+    const clicks = (iso2 && countryDataMap.get(iso2)) || (iso3 && countryDataMap.get(iso3)) || 0;
+    setTooltip({ x: e.clientX, y: e.clientY, name: countryName, clicks });
   };
+  const handleLeave = () => setTooltip(null);
 
   return (
-    <div className="min-h-screen bg-gray-50" onMouseMove={handleMouseMove}>
+    <div className="min-h-screen bg-gray-50">
       {/* Full Screen Header */}
       <div className="bg-white border-b border-gray-200 px-4 sm:px-6 lg:px-8 py-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
@@ -242,64 +205,46 @@ const WorldMap: React.FC = () => {
             <ZoomableGroup zoom={1}>
               <Geographies geography={geoUrl}>
                 {({ geographies }: { geographies: GeographyType[] }) =>
-                  geographies.map((geo: GeographyType) => {
-                    const countryInfo = getCountryInfo(geo);
-                    const isHovered = hoveredGeo?.rsmKey === geo.rsmKey;
-                    
-                    return (
-                                             <Geography
-                         key={geo.rsmKey}
-                         geography={geo}
-                         fill={getCountryColor(geo)}
-                         stroke="#FFFFFF"
-                         strokeWidth={0.5}
-                         style={{
-                           default: { 
-                             outline: 'none',
-                             transition: 'all 0.2s ease'
-                           },
-                           hover: { 
-                             outline: 'none',
-                             stroke: '#1E40AF',
-                             strokeWidth: 2,
-                             filter: 'brightness(1.1)',
-                             cursor: 'pointer'
-                           },
-                           pressed: { outline: 'none' }
-                         }}
-                       />
-                    );
-                  })
+                  geographies.map((geo: GeographyType) => (
+                    <Geography
+                      key={geo.rsmKey}
+                      geography={geo}
+                      fill={getCountryColor(geo)}
+                      stroke="#FFFFFF"
+                      strokeWidth={0.5}
+                      style={{
+                        default: { 
+                          outline: 'none',
+                          transition: 'all 0.2s ease',
+                          transformOrigin: 'center'
+                        },
+                        hover: { 
+                          outline: 'none',
+                          filter: 'brightness(1.06)',
+                          strokeWidth: 2,
+                          cursor: 'pointer'
+                        },
+                        pressed: { outline: 'none' }
+                      }}
+                      onMouseEnter={(e: any) => handleMove(e, geo)}
+                      onMouseMove={(e: any) => handleMove(e, geo)}
+                      onMouseLeave={handleLeave}
+                    />
+                  ))
                 }
               </Geographies>
             </ZoomableGroup>
           </ComposableMap>
         </div>
 
-        {/* Floating Tooltip - Resimdeki gibi */}
-        {hoveredGeo && (
+        {/* Hover Tooltip */}
+        {tooltip && (
           <div 
-            className="fixed bg-gray-900 bg-opacity-95 text-white px-4 py-3 rounded-lg shadow-2xl backdrop-blur-sm border border-gray-700 z-50 pointer-events-none"
-            style={{
-              left: mousePosition.x + 15,
-              top: mousePosition.y - 60,
-              transform: mousePosition.x > window.innerWidth - 200 ? 'translateX(-100%)' : 'none'
-            }}
+            className="fixed z-50 pointer-events-none bg-gray-900 text-white px-3 py-2 rounded-lg shadow-lg border border-gray-800 text-sm"
+            style={{ left: Math.min(tooltip.x + 14, window.innerWidth - 220), top: Math.min(tooltip.y + 12, window.innerHeight - 80) }}
           >
-            <div className="text-sm font-semibold">
-              {(() => {
-                const countryInfo = getCountryInfo(hoveredGeo);
-                return countryInfo.name;
-              })()}
-            </div>
-            <div className="text-xs text-gray-300 mt-1">
-              {(() => {
-                const countryInfo = getCountryInfo(hoveredGeo);
-                return countryInfo.clicks > 0 
-                  ? `${countryInfo.clicks.toLocaleString()} ziyaret` 
-                  : 'Veri bulunmuyor';
-              })()}
-            </div>
+            <div className="font-semibold">{tooltip.name}</div>
+            <div className="opacity-90">{tooltip.clicks.toLocaleString()} tıklama</div>
           </div>
         )}
 

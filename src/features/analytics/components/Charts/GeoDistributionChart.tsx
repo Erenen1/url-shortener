@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { 
   ComposableMap, 
   Geographies, 
@@ -45,9 +45,6 @@ const COUNTRY_COORDS: Record<string, {
 };
 
 const GeoDistributionChart: React.FC<{ metrics: AnalyticsMetrics }> = ({ metrics }) => {
-  const [hoveredCountry, setHoveredCountry] = useState<string | null>(null);
-  const [hoveredGeo, setHoveredGeo] = useState<string | null>(null);
-
   // Ülke verilerini işle
   const geoData = useMemo(() => {
     const processedData = Object.entries(metrics.geoDistribution)
@@ -72,13 +69,16 @@ const GeoDistributionChart: React.FC<{ metrics: AnalyticsMetrics }> = ({ metrics
 
   // Tıklama sayısına göre renk skalası - Daha belirgin ve resimdeki gibi
   const colorScale = useMemo(() => {
+    if (geoData.length === 0) {
+      return (_n: number) => '#E8F4FD';
+    }
     const clicks = geoData.map(country => Number(country.clicks));
     const maxClicks = Math.max(...clicks);
     const minClicks = Math.min(...clicks);
     
     return scaleLinear<string>()
       .domain([0, minClicks, maxClicks])
-      .range(['#E8F4FD', '#3B82F6', '#1E3A8A']); // Çok açık mavi -> Mavi -> Koyu mavi
+      .range(['#E8F4FD', '#3B82F6', '#1E3A8A']);
   }, [geoData]);
 
   // Ülke kodlarını ISO3 formatına çevir
@@ -125,48 +125,6 @@ const GeoDistributionChart: React.FC<{ metrics: AnalyticsMetrics }> = ({ metrics
     }
 
     return colorScale(clicks);
-  };
-
-  // Ülke bilgisini al
-  const getCountryInfo = (geo: GeographyType) => {
-    const iso2 = geo.properties.ISO_A2;
-    const iso3 = geo.properties.ISO_A3;
-    const countryName = geo.properties.name;
-    
-    let clicks = 0;
-    let countryDisplayName = countryName;
-    
-    if (iso2 && countryDataMap.has(iso2)) {
-      clicks = countryDataMap.get(iso2) || 0;
-      const countryInfo = geoData.find(c => c.code === iso2);
-      if (countryInfo) countryDisplayName = countryInfo.name;
-    } else if (iso3 && countryDataMap.has(iso3)) {
-      clicks = countryDataMap.get(iso3) || 0;
-      const countryInfo = geoData.find(c => c.iso3 === iso3);
-      if (countryInfo) countryDisplayName = countryInfo.name;
-    } else {
-      const manualMappings: Record<string, string> = {
-        'Turkey': 'TR',
-        'United States of America': 'US',
-        'Germany': 'DE',
-        'France': 'FR',
-        'Japan': 'JP',
-        'China': 'CN',
-        'India': 'IN',
-        'Brazil': 'BR',
-        'Russia': 'RU',
-        'Australia': 'AU'
-      };
-      
-      const mappedCode = manualMappings[countryName];
-      if (mappedCode && countryDataMap.has(mappedCode)) {
-        clicks = countryDataMap.get(mappedCode) || 0;
-        const countryInfo = geoData.find(c => c.code === mappedCode);
-        if (countryInfo) countryDisplayName = countryInfo.name;
-      }
-    }
-
-    return { clicks, name: countryDisplayName };
   };
 
   const totalVisits = geoData.reduce((sum, country) => sum + Number(country.clicks), 0);
@@ -224,63 +182,33 @@ const GeoDistributionChart: React.FC<{ metrics: AnalyticsMetrics }> = ({ metrics
               <ZoomableGroup zoom={1}>
                 <Geographies geography={geoUrl}>
                   {({ geographies }: { geographies: GeographyType[] }) =>
-                    geographies.map((geo: GeographyType) => {
-                      const countryInfo = getCountryInfo(geo);
-                      const isHovered = hoveredGeo === geo.rsmKey;
-                      
-                      return (
-                        <Geography
-                          key={geo.rsmKey}
-                          geography={geo}
-                          fill={getCountryColor(geo)}
-                          stroke="#FFFFFF"
-                          strokeWidth={0.5}
-                          style={{
-                            default: { 
-                              outline: 'none',
-                              transition: 'all 0.2s ease'
-                            },
-                            hover: { 
-                              outline: 'none',
-                              stroke: '#1E40AF',
-                              strokeWidth: 2,
-                              filter: 'brightness(1.1)'
-                            },
-                            pressed: { outline: 'none' }
-                          }}
-                        />
-                      );
-                    })
+                    geographies.map((geo: GeographyType) => (
+                      <Geography
+                        key={geo.rsmKey}
+                        geography={geo}
+                        fill={getCountryColor(geo)}
+                        stroke="#FFFFFF"
+                        strokeWidth={0.5}
+                        style={{
+                          default: { 
+                            outline: 'none',
+                            transition: 'all 0.2s ease'
+                          },
+                          hover: { 
+                            outline: 'none',
+                            stroke: '#1E40AF',
+                            strokeWidth: 2,
+                            filter: 'brightness(1.1)'
+                          },
+                          pressed: { outline: 'none' }
+                        }}
+                      />
+                    ))
                   }
                 </Geographies>
               </ZoomableGroup>
             </ComposableMap>
           </div>
-
-          {/* Hover Tooltip */}
-          {hoveredCountry && hoveredGeo && (
-            <div className="absolute top-4 left-4 bg-gray-900 bg-opacity-90 text-white px-4 py-3 rounded-lg shadow-lg backdrop-blur-sm border border-gray-700 z-10">
-                             <div className="text-sm font-semibold">
-                 {(() => {
-                   const foundCountry = geoData.find(c => 
-                     hoveredGeo?.includes(c.code) || 
-                     hoveredGeo?.includes(c.iso3 || '') ||
-                     c.name.toLowerCase().includes(hoveredGeo?.toLowerCase() || '')
-                   );
-                   return foundCountry?.name || 'Hover edilen ülke';
-                 })()}
-               </div>
-               <div className="text-xs text-gray-300 mt-1">
-                 {(() => {
-                   const foundCountry = geoData.find(c => 
-                     hoveredGeo?.includes(c.code) || 
-                     hoveredGeo?.includes(c.iso3 || '')
-                   );
-                   return foundCountry ? `${foundCountry.clicks.toLocaleString()} ziyaret` : 'Veri yok';
-                 })()}
-               </div>
-            </div>
-          )}
         </div>
 
         {/* Alt İstatistik Bölümü */}
@@ -290,8 +218,6 @@ const GeoDistributionChart: React.FC<{ metrics: AnalyticsMetrics }> = ({ metrics
               <div 
                 key={country.code}
                 className="text-center p-3 bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow"
-                onMouseEnter={() => setHoveredCountry(country.code)}
-                onMouseLeave={() => setHoveredCountry(null)}
               >
                 <div className="text-xs font-medium text-gray-500 mb-1">
                   #{index + 1}

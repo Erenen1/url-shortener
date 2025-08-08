@@ -37,6 +37,37 @@ interface FilterOptions {
   sortOrder: 'asc' | 'desc';
 }
 
+// Yardımcı fonksiyonları bileşen dışına taşı
+const getActionIcon = (action: string) => {
+  switch (action) {
+    case 'Created':
+      return <PlusIcon className="w-5 h-5 text-green-600" />;
+    case 'Accessed':
+      return <EyeIcon className="w-5 h-5 text-blue-600" />;
+    case 'Deleted':
+      return <TrashIcon className="w-5 h-5 text-red-600" />;
+    case 'Updated':
+      return <DocumentCheckIcon className="w-5 h-5 text-orange-600" />;
+    default:
+      return <DocumentIcon className="w-5 h-5 text-gray-600" />;
+  }
+};
+
+const getActionColor = (action: string) => {
+  switch (action) {
+    case 'Created':
+      return 'bg-green-50 text-green-700 border-green-200';
+    case 'Accessed':
+      return 'bg-blue-50 text-blue-700 border-blue-200';
+    case 'Deleted':
+      return 'bg-red-50 text-red-700 border-red-200';
+    case 'Updated':
+      return 'bg-orange-50 text-orange-700 border-orange-200';
+    default:
+      return 'bg-gray-50 text-gray-700 border-gray-200';
+  }
+};
+
 const LogViewer: React.FC = () => {
   const [filters, setFilters] = useState<FilterOptions>({
     dateRange: 'all',
@@ -51,7 +82,7 @@ const LogViewer: React.FC = () => {
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
   // Mock log verileri - daha kapsamlı
-  const allLogs: LogEntry[] = [
+  const allLogs: LogEntry[] = useMemo(() => ([
     { 
       id: 1, 
       timestamp: '2024-01-15 10:30:45', 
@@ -118,7 +149,7 @@ const LogViewer: React.FC = () => {
       country: 'TR',
       clicks: 56
     }
-  ];
+  ]), []);
 
   // Filtrelenmiş logları hesapla
   const filteredLogs = useMemo(() => {
@@ -203,38 +234,6 @@ const LogViewer: React.FC = () => {
       sortBy: 'timestamp',
       sortOrder: 'desc'
     });
-  };
-
-  // İşlem türü ikonları
-  const getActionIcon = (action: string) => {
-    switch (action) {
-      case 'Created':
-        return <PlusIcon className="w-5 h-5 text-green-600" />;
-      case 'Accessed':
-        return <EyeIcon className="w-5 h-5 text-blue-600" />;
-      case 'Deleted':
-        return <TrashIcon className="w-5 h-5 text-red-600" />;
-      case 'Updated':
-        return <DocumentCheckIcon className="w-5 h-5 text-orange-600" />;
-      default:
-        return <DocumentIcon className="w-5 h-5 text-gray-600" />;
-    }
-  };
-
-  // İşlem türü rengi
-  const getActionColor = (action: string) => {
-    switch (action) {
-      case 'Created':
-        return 'bg-green-50 text-green-700 border-green-200';
-      case 'Accessed':
-        return 'bg-blue-50 text-blue-700 border-blue-200';
-      case 'Deleted':
-        return 'bg-red-50 text-red-700 border-red-200';
-      case 'Updated':
-        return 'bg-orange-50 text-orange-700 border-orange-200';
-      default:
-        return 'bg-gray-50 text-gray-700 border-gray-200';
-    }
   };
 
   return (
